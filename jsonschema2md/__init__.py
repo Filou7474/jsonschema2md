@@ -19,7 +19,7 @@ import sys
 from collections.abc import Sequence
 from typing import Optional, Union
 from urllib.parse import quote
-
+import logging
 import yaml
 
 __version__ = version("jsonschema2md")
@@ -63,13 +63,15 @@ class Parser:
                 f"`{valid_show_examples_options}`; `{show_examples}` was passed."
             )
 
-    def _construct_description_line(self, obj: dict, add_type: bool = False) -> Sequence[str]:
+    def _construct_description_line(self, obj: dict, add_type: bool = False, obj_name = None) -> Sequence[str]:
         """Construct description line of property, definition, or item."""
         description_line = []
 
         if "description" in obj:
             ending = "" if re.search(r"[.?!;]$", obj["description"]) else "."
             description_line.append(f"{obj['description']}{ending}")
+        else:
+            print(f"WARNING: description field missing from : {obj_name}")
         if add_type:
             if "type" in obj:
                 description_line.append(f"Must be of type *{obj['type']}*.")
@@ -113,13 +115,13 @@ class Parser:
 
         return description_line
 
-    def _construct_examples(self, obj: dict, indent_level: int = 0, add_header: bool = True) -> Sequence[str]:
+    def _construct_examples(self, obj: dict, indent_level: int = 0, add_header: bool = True, obj_name = None) -> Sequence[str]:
         def dump_json_with_line_head(obj, line_head, **kwargs):
             result = [line_head + line for line in io.StringIO(json.dumps(obj, **kwargs)).readlines()]
             return "".join(result)
 
         def dump_yaml_with_line_head(obj, line_head, **kwargs):
-            result = [line_head + line for line in io.StringIO(yaml.dump(obj, **kwargs)).readlines()]
+            result = [line_head + line for line in io.StringIO(yaml.dump(obj, sort_keys=False,  **kwargs)).readlines()]
             return "".join(result).rstrip()
 
         example_lines = []
@@ -175,7 +177,7 @@ class Parser:
             raise TypeError(f"Non-object type found in properties list: `{name}: {obj}`.")
 
         # Construct full description line
-        description_line_base = self._construct_description_line(obj)
+        description_line_base = self._construct_description_line(obj, obj_name=name)
         description_line = list(
             map(
                 lambda line: line.replace("\n\n", "<br>" + indentation_items),
@@ -263,9 +265,12 @@ class Parser:
         if "title" in schema_object:
             output_lines.append(f"# {schema_object['title']}\n\n")
         else:
+            print("WARNING: Schema title is missing, defaulting to # JSON Schema")
             output_lines.append("# JSON Schema\n\n")
         if "description" in schema_object:
             output_lines.append(f"*{schema_object['description']}*\n\n")
+        else:
+            print("WARNING: Schema description is missing")
 
         # Add items
         if "items" in schema_object:
